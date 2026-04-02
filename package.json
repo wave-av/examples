@@ -1,0 +1,17 @@
+{
+  "name": "wave-examples",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "basic-stream": "npx tsx sdk/basic-stream/index.ts",
+    "stream-monitor": "npx tsx adk/stream-monitor/index.ts"
+  },
+  "dependencies": {
+    "@wave-av/sdk": "^2.0.0",
+    "@wave-av/adk": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
