@@ -1,44 +1,39 @@
 # WAVE examples
 
-Working code examples for the WAVE developer platform.
+Working examples for the WAVE developer platform. Each directory is a standalone project you can clone and run.
 
-## SDK examples
+## Examples
 
-| Example | Description | Run |
-|---------|-------------|-----|
-| [basic-stream](./sdk/basic-stream/) | Create and start a live stream | `npx tsx sdk/basic-stream/index.ts` |
-| [clips](./sdk/clips/) | Create clips from a stream | `npx tsx sdk/clips/index.ts` |
-| [captions](./sdk/captions/) | Generate captions with speaker diarization | `npx tsx sdk/captions/index.ts` |
-| [analytics](./sdk/analytics/) | Query viewer analytics | `npx tsx sdk/analytics/index.ts` |
-
-## ADK examples
-
-| Example | Description | Run |
-|---------|-------------|-----|
-| [stream-monitor](./adk/stream-monitor/) | Autonomous stream quality monitor | `npx tsx adk/stream-monitor/index.ts` |
-| [clip-factory](./adk/clip-factory/) | AI-powered highlight clipper | `npx tsx adk/clip-factory/index.ts` |
-
-## MCP server
-
-| Example | Description |
-|---------|-------------|
-| [claude-config](./mcp/claude-config/) | Configure MCP server for Claude Code |
-| [cursor-config](./mcp/cursor-config/) | Configure MCP server for Cursor |
+| Example | Package | Description |
+|---------|---------|-------------|
+| [`sdk-quickstart`](./sdk-quickstart) | [`@wave-av/sdk`](https://github.com/wave-av/sdk) | Create a stream, start it, and fetch viewer analytics |
+| [`mcp-server-setup`](./mcp-server-setup) | [`@wave-av/mcp-server`](https://github.com/wave-av/mcp-server) | Configure WAVE tools in Claude, Cursor, or any MCP client |
+| [`adk-hello-agent`](./adk-hello-agent) | [`@wave-av/adk`](https://github.com/wave-av/adk) | Build an AI agent that monitors stream quality |
 
 ## Prerequisites
 
 - Node.js 18+
-- A WAVE API key ([get one free](https://wave.online/developers))
+- A WAVE API key ([get one here](https://wave.online/settings/api-keys))
 
-## Setup
+## Getting started
 
 ```bash
+# Clone this repo
 git clone https://github.com/wave-av/examples.git
 cd examples
-npm install
-export WAVE_API_KEY=your_key_here
+
+# Pick an example
+cd sdk-quickstart
+pnpm install
+pnpm start
 ```
+
+## Get help
+
+- [Documentation](https://docs.wave.online)
+- [SDK reference](https://github.com/wave-av/sdk)
+- [Discussions](https://github.com/orgs/wave-av/discussions)
 
 ## License
 
-MIT
+[MIT](./LICENSE)

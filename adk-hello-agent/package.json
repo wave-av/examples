@@ -1,0 +1,15 @@
+{
+  "name": "@wave-av/example-adk-hello-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx agent.ts"
+  },
+  "dependencies": {
+    "@wave-av/adk": "latest"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0"
+  }
+}
