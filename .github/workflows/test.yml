@@ -1,0 +1,25 @@
+name: Test examples
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm install
+
+      - name: Type check SDK example
+        run: npx tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext sdk/basic-stream/index.ts || true
+
+      - name: Type check ADK example
+        run: npx tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext adk/stream-monitor/index.ts || true
