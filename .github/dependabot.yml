@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /sdk-quickstart
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /mcp-server-setup
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /adk-hello-agent
+    schedule:
+      interval: weekly
