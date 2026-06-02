@@ -1,18 +1,35 @@
 {
   "schemaVersion": "1",
   "repo": "wave-av/examples",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "lifecycle": "alpha",
   "planeLayer": null,
   "foundationPin": "v1",
-  "maintainers": [{ "team": "sdk" }],
+  "maintainers": [
+    {
+      "team": "sdk"
+    }
+  ],
   "consumes": {
     "waveProducts": [
-      { "repo": "wave-av/sdks" },
-      { "repo": "wave-av/adk" },
-      { "repo": "wave-av/mcp-server" }
+      {
+        "repo": "wave-av/sdks"
+      },
+      {
+        "repo": "wave-av/adk"
+      },
+      {
+        "repo": "wave-av/mcp-server"
+      }
     ],
-    "foundationFrameworks": ["frameworks/platform-registry"]
+    "foundationFrameworks": [
+      "frameworks/platform-registry"
+    ]
   },
-  "tags": ["examples", "public", "reference-app", "build-on-wave"]
+  "tags": [
+    "examples",
+    "public",
+    "reference-app",
+    "build-on-wave"
+  ]
 }
