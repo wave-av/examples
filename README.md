@@ -37,3 +37,8 @@ pnpm start
 ## License
 
 [Apache-2.0](./LICENSE) — see also [NOTICE](./NOTICE).
+
+---
+
+<!-- wave-standard-footer -->
+<sub><b><a href="https://wave.online">wave.online</a></b> &nbsp;·&nbsp; <a href="https://docs.wave.online">Docs</a> &nbsp;·&nbsp; <a href="https://dev.wave.online">Developers</a> &nbsp;·&nbsp; <a href="https://agents.wave.online">For agents</a></sub>
