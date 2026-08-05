@@ -2,7 +2,7 @@
 
 # examples
 
-**Working, runnable examples for the WAVE developer platform — the SDK, the ADK, and the MCP server. Each directory is a standalone project you can clone and run.**
+**Working, runnable examples for the WAVE developer platform — the SDK, the ADK, and the MCP server. Each standalone example directory is a project you can clone and run; get-started guides live in the table below.**
 
 ![kind](https://img.shields.io/badge/kind-examples-555?style=flat-square) ![domain](https://img.shields.io/badge/domain-developer--tools-0a7?style=flat-square) ![lang](https://img.shields.io/badge/lang-TypeScript-3178c6?style=flat-square) ![visibility](https://img.shields.io/badge/visibility-public-brightgreen?style=flat-square) ![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)
 
