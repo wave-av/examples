@@ -60,10 +60,19 @@ jobs:
     # neutral, it REPLACES a failing verdict on the same head SHA.
     concurrency:
       group: public-repo-guard-tree-${{ github.event.pull_request.number || github.ref }}
-      cancel-in-progress: true
+      # `edited` fires on every title/body edit (bots edit PR bodies constantly) and
+      # re-scans an UNCHANGED merge ref — so it must not cancel an in-flight run on
+      # the same head SHA, or every body edit leaves a cancelled check-run attached
+      # to the commit. `synchronize` (and push) DO supersede the previous merge ref,
+      # so those still cancel the now-stale scan.
+      cancel-in-progress: ${{ github.event.action != 'edited' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # The gate only reads the tree; no later step may find the workflow token
+          # in .git/config — matches every other workflow in this repo.
+          persist-credentials: false
 
       # gitleaks' GitHub Action requires a paid license for organizations; the CLI
       # itself is MIT-licensed and free. Pin the version AND verify the release
@@ -86,12 +95,21 @@ jobs:
         run: gitleaks detect --no-git --source . --config .gitleaks.toml --redact --no-banner --exit-code 1
 
       # Both policy scripts scan with `rg -P`, which needs a PCRE2-enabled build.
-      # The apt package is not guaranteed to ship one, and a PCRE2-less rg makes
-      # every rule fail closed with an opaque per-rule error — so verify PCRE2 at
-      # install time, where the failure names the actual problem.
-      - name: Install ripgrep (PCRE2 required)
+      # Neither the runner image nor Ubuntu's apt package guarantees one, and a
+      # PCRE2-less rg makes every rule fail closed — so install the pinned upstream
+      # musl release (built with PCRE2), checksum-verified like gitleaks above, and
+      # verify PCRE2 at install time, where the failure names the actual problem.
+      - name: Install ripgrep (pinned + checksum-verified, PCRE2 required)
+        env:
+          RIPGREP_VERSION: "14.1.1"
+          RIPGREP_SHA256: "4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e"
         run: |
-          command -v rg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep)
+          curl -fsSL --proto '=https' --tlsv1.2 -o ripgrep.tar.gz \
+            "https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          echo "${RIPGREP_SHA256}  ripgrep.tar.gz" | sha256sum -c -
+          tar -xzf ripgrep.tar.gz --strip-components=1 "ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl/rg"
+          sudo install -m 0755 rg /usr/local/bin/rg
+          rm -f rg ripgrep.tar.gz
           rg --pcre2-version >/dev/null \
             || { echo "::error title=public-repo-guard::this ripgrep build lacks PCRE2 (required for the -P policy rules) — install a PCRE2-enabled rg."; exit 1; }
 
