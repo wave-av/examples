@@ -14,8 +14,12 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 # The names the real gate is configured with come from an org variable; the tests
-# pin their own so they are hermetic and do not depend on CI configuration.
-export GUARD_PRIVATE_REPOS="wave-gateway, wave-transports, agent-money"
+# pin their own so they are hermetic and do not depend on CI configuration. The
+# pinned names are deliberately SYNTHETIC: this file is world-readable and the
+# tree scanners exclude scripts/public-repo-guard/**, so a real private-repo name
+# written here would be published unscanned — the exact leak the gate exists to
+# block. Never swap these for real names.
+export GUARD_PRIVATE_REPOS="acme-private-gateway, acme-private-transports, acme-private-billing"
 
 PASS=0; FAIL=0
 
@@ -39,13 +43,17 @@ echo "body-policy fixtures"
 
 # --- must BLOCK ---------------------------------------------------------------
 expect 1 'private repo + credential name' \
-  'Flip is live: WAVE_VIEWPORT_LEASE_SECRET is bound on wave-gateway now.'
+  'Flip is live: WAVE_VIEWPORT_LEASE_SECRET is bound on acme-private-gateway now.'
 expect 1 'private repo + credential name, reverse order' \
-  'The MOQ_JOIN_SECRET was added; wave-transports picks it up on deploy.'
+  'The MOQ_JOIN_SECRET was added; acme-private-transports picks it up on deploy.'
 expect 1 'private repo + secret count' \
-  'wave-gateway went from 74 secrets to 75 after this change.'
+  'acme-private-gateway went from 74 secrets to 75 after this change.'
 expect 1 'private repo + service binding' \
-  'This adds a service binding from the worker to agent-money for settlement.'
+  'This adds a service binding from the worker to acme-private-billing for settlement.'
+# Case-insensitivity is scoped to the repo NAME, not the whole pattern: a cased
+# variant of the name still blocks, while OPS_DETAIL stays SCREAMING_CASE-only.
+expect 1 'mixed-case private repo name + credential name still blocks' \
+  'ACME-Private-Gateway reads the ROLLOUT_SECRET at boot after this change.'
 expect 1 'operator home path' \
   'Repro: run it from /Users/someoperator/Documents/notes and it fails.'  # enforce-ignore (fixture)
 expect 1 'internal-only marker' \
@@ -67,17 +75,21 @@ expect 1 'credential still blocks on a line naming the control' \
 
 # --- must PASS (precision — these keep the gate deployable) -------------------
 expect 0 'bare private-repo cross-reference' \
-  'This is the companion change to wave-transports#260; merge that one first.'
+  'This is the companion change to acme-private-transports#260; merge that one first.'
 expect 0 'two private repos, no operational detail' \
-  'Both wave-gateway and wave-transports will need a follow-up for this.'
+  'Both acme-private-gateway and acme-private-transports will need a follow-up for this.'
 expect 0 'credential NAME with no private repo nearby' \
   'The handler now reads SOME_API_TOKEN from the environment instead of a literal.'
+# Regression for a global (?i) that made lowercase prose count as OPS_DETAIL:
+# "api_key" is ordinary description, not a SCREAMING_CASE credential name.
+expect 0 'lowercase credential-ish word near a private repo is prose' \
+  'Companion to acme-private-transports#260 — adds the api_key plumbing to the client.'
 expect 0 'public runner path is not an operator path' \
   'CI checks out to /home/runner/work/repo/repo before the scan runs.'  # enforce-ignore (fixture)
 expect 0 'talking about the control' \
   'body-policy blocks a private repo named next to a SECRET_TOKEN; that is intended.'
 expect 0 'explicit guard:allow with a reason' \
-  'Example for the docs: wave-gateway holds EXAMPLE_SECRET — guard:allow documented-example'
+  'Example for the docs: acme-private-gateway holds EXAMPLE_SECRET — guard:allow documented-example'
 expect 0 'credential on a control line passes only via explicit guard:allow' \
   "public-repo-guard docs cite ${AKID_FIXTURE} as the test fixture — guard:allow documented-fixture"
 expect 0 'ordinary clean body' \

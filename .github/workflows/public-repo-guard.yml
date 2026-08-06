@@ -85,8 +85,15 @@ jobs:
       - name: gitleaks (secret scan — published tree)
         run: gitleaks detect --no-git --source . --config .gitleaks.toml --redact --no-banner --exit-code 1
 
-      - name: Install ripgrep
-        run: command -v rg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep)
+      # Both policy scripts scan with `rg -P`, which needs a PCRE2-enabled build.
+      # The apt package is not guaranteed to ship one, and a PCRE2-less rg makes
+      # every rule fail closed with an opaque per-rule error — so verify PCRE2 at
+      # install time, where the failure names the actual problem.
+      - name: Install ripgrep (PCRE2 required)
+        run: |
+          command -v rg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep)
+          rg --pcre2-version >/dev/null \
+            || { echo "::error title=public-repo-guard::this ripgrep build lacks PCRE2 (required for the -P policy rules) — install a PCRE2-enabled rg."; exit 1; }
 
       - name: content policy (WAVE trade-secret / internal-leak gate)
         env:
@@ -132,8 +139,15 @@ jobs:
           sparse-checkout: scripts/public-repo-guard
           sparse-checkout-cone-mode: false
 
-      - name: Install ripgrep
-        run: command -v rg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep)
+      # Both policy scripts scan with `rg -P`, which needs a PCRE2-enabled build.
+      # The apt package is not guaranteed to ship one, and a PCRE2-less rg makes
+      # every rule fail closed with an opaque per-rule error — so verify PCRE2 at
+      # install time, where the failure names the actual problem.
+      - name: Install ripgrep (PCRE2 required)
+        run: |
+          command -v rg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep)
+          rg --pcre2-version >/dev/null \
+            || { echo "::error title=public-repo-guard::this ripgrep build lacks PCRE2 (required for the -P policy rules) — install a PCRE2-enabled rg."; exit 1; }
 
       # The body is read straight out of the event payload FILE and written to
       # another file. It is never interpolated into a run: block and never placed
