@@ -112,6 +112,50 @@ expect 0 'marker MENTIONED in smart quotes' \
 expect 1 'marker USED unquoted still blocks' \
   'Attaching the internal-only rollout plan; do not share outside the team.'
 
+# --- configuration handling ----------------------------------------------------
+# expect_with_env <exit-code> <name> <body-text> <env-assignments...>
+# Same contract as expect(), but runs the script under an explicit environment
+# instead of the file-level export, so these cases stay hermetic no matter where
+# the suite itself runs (CI exports GITHUB_ACTIONS=true; a laptop does not).
+expect_with_env() {
+  local want="$1" name="$2" body="$3"; shift 3
+  printf '%s\n' "$body" > "$TMP/body.txt"
+  local rc
+  env "$@" bash "$SCRIPT" "$TMP/body.txt" >/dev/null 2>&1; rc=$?
+  if [[ "$rc" == "$want" ]]; then
+    PASS=$((PASS+1)); printf '  ok   %s\n' "$name"
+  else
+    FAIL=$((FAIL+1)); printf '  FAIL %s: want exit %s, got %s\n' "$name" "$want" "$rc"
+  fi
+}
+
+# A newline-separated variable is the natural way to enter a multi-line Actions
+# variable, and `read` without -d '' stopped at the first line, silently leaving
+# every later name unguarded. The fixture leaks the THIRD name: it only blocks
+# if the whole value was parsed.
+expect_with_env 1 'newline-separated repo list still guards names after line one' \
+  'Flip is live: acme-private-billing now reads WAVE_VIEWPORT_LEASE_SECRET at boot.' \
+  GUARD_PRIVATE_REPOS=$'acme-private-gateway\nacme-private-transports\nacme-private-billing'
+
+# In CI an empty GUARD_PRIVATE_REPOS is a misconfiguration, not a pass: the
+# workflow always injects the env line, so empty means the org variable is gone.
+# The gate must go red rather than run with its headline rule silently disabled.
+expect_with_env 2 'empty GUARD_PRIVATE_REPOS in CI fails closed' \
+  'An ordinary clean body with nothing to hide.' \
+  GUARD_PRIVATE_REPOS= GITHUB_ACTIONS=true
+expect_with_env 2 'separator-only GUARD_PRIVATE_REPOS in CI fails closed' \
+  'An ordinary clean body with nothing to hide.' \
+  GUARD_PRIVATE_REPOS=' , , ' GITHUB_ACTIONS=true
+
+# Locally the documented skip still applies: developers do not carry the org's
+# private-repo list, and the other rules still run.
+expect_with_env 0 'empty GUARD_PRIVATE_REPOS locally skips the rule, still passes' \
+  'An ordinary clean body with nothing to hide.' \
+  GUARD_PRIVATE_REPOS= GITHUB_ACTIONS=
+expect_with_env 1 'empty GUARD_PRIVATE_REPOS locally still enforces other rules' \
+  'Attaching the internal-only rollout plan for context.' \
+  GUARD_PRIVATE_REPOS= GITHUB_ACTIONS=
+
 # --- fail closed --------------------------------------------------------------
 # Invoked directly, not through expect(): expect() always materializes a file, so
 # it cannot reach these paths. A gate that returns "OK" when it was handed nothing

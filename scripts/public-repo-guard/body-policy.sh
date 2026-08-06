@@ -124,18 +124,41 @@ check BLOCK internal-marker  '(?<![“"'"'"'`])\b(internal[- ]only|do\s+not\s+(s
 # of what is wired to what, and it is the shape that actually leaked.
 #
 # Names are NOT hardcoded (this file is public); CI injects them via the
-# GUARD_PRIVATE_REPOS variable. Unset locally → this check is skipped.
-if [[ -n "${GUARD_PRIVATE_REPOS:-}" ]]; then
+# GUARD_PRIVATE_REPOS variable. What an EMPTY value means depends on where we
+# are. In CI it is a misconfiguration, not a pass: the workflow always injects
+# the env line, so empty means the org variable is unset, renamed, or not
+# visible to the run; and every other broken precondition in this file exits 2
+# rather than rubber-stamping, so the one rule this gate was built for must not
+# be the exception. Locally the check is skipped, with a visible notice,
+# because developers have no reason to carry the org's private-repo list.
+_no_private_repo_config() {
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    echo "::error title=public-repo-guard (private-repo-ops)::GUARD_PRIVATE_REPOS is empty (the org variable is unset, renamed, or not visible to this run). Refusing to report a pass with the private-repo rule silently disabled."
+    exit 2
+  fi
+  echo "body-policy: GUARD_PRIVATE_REPOS unset; private-repo-ops rule skipped (local run only)"
+}
+if [[ -z "${GUARD_PRIVATE_REPOS:-}" ]]; then
+  _no_private_repo_config
+else
   OPS_DETAIL='(?:[A-Z][A-Z0-9]*_(?:SECRET|TOKEN|KEY|PASSWORD)|wrangler\s+secret|secret\s+(?:is\s+)?(?:bound|binding|list)|(?:is\s+)?bound\s+on|service\s+binding|\d{2,}\s+secrets)'
   _ALT=''
-  IFS=', ' read -r -a _PRIV <<< "$GUARD_PRIVATE_REPOS"
+  # `-d ''` reads the WHOLE value, not just its first line: without it, `read`
+  # stops at the first newline, so a newline-separated Actions variable (the
+  # natural shape for a multi-line list) silently dropped every name after the
+  # first. Split on commas, spaces, tabs, AND newlines. (read hits EOF looking
+  # for the NUL delimiter and returns nonzero after filling the array; benign.)
+  IFS=$', \t\n' read -r -d '' -a _PRIV <<< "$GUARD_PRIVATE_REPOS" || true
   for _name in "${_PRIV[@]}"; do
     [[ -z "$_name" ]] && continue
     # Regex-escape so metacharacters in a name match literally.
     _esc="$(printf '%s' "$_name" | sed -E 's/[][(){}.^$*+?|\\]/\\&/g')"
     _ALT="${_ALT:+$_ALT|}${_esc}"
   done
-  if [[ -n "$_ALT" ]]; then
+  if [[ -z "$_ALT" ]]; then
+    # A value of only separators is as disabled as no value at all.
+    _no_private_repo_config
+  else
     # Both orders: name-then-detail and detail-then-name. Case-insensitivity is
     # scoped to the REPO NAME alternation only — (?i:...) not a global (?i) — so
     # OPS_DETAIL keeps its deliberate SCREAMING_CASE requirement. A global flag
