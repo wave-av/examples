@@ -97,9 +97,23 @@ check BLOCK abs-user-path    '/(Users|home)/(?!runner/)[a-z][a-z0-9._-]+/'      
 # Private WAVE repo/product names that must never appear in a public tree. The
 # names are NOT hardcoded here (this file is itself public) — they are supplied
 # at run time via GUARD_PRIVATE_REPOS (CI injects it from an org-level Actions
-# variable), comma-, space-, or newline-separated. Unset locally → this check is
-# skipped.
-if [[ -n "${GUARD_PRIVATE_REPOS:-}" ]]; then
+# variable), comma-, space-, or newline-separated. What an EMPTY value means
+# depends on where we are — same fail-closed semantics as body-policy.sh. In CI
+# the workflow always injects the env line, so empty means the org variable is
+# unset, renamed, or not visible to the run: that is a misconfiguration, and
+# reporting "content policy OK" with this rule silently disabled would turn the
+# required check into a rubber stamp. Locally the check is skipped, with a
+# visible notice, because developers have no reason to carry the org's list.
+_no_private_repo_config() {
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    echo "::error title=public-repo-guard (private-repo)::GUARD_PRIVATE_REPOS is empty (the org variable is unset, renamed, or not visible to this run). Refusing to report a pass with the private-repo rule silently disabled."
+    exit 2
+  fi
+  echo "content-policy: GUARD_PRIVATE_REPOS unset; private-repo rule skipped (local run only)"
+}
+if [[ -z "${GUARD_PRIVATE_REPOS:-}" ]]; then
+  _no_private_repo_config
+else
   # `-d ''` reads the WHOLE value, not just its first line: a plain `read` stops
   # at the first newline, so a newline-separated Actions variable (the natural
   # shape for a multi-line list) silently dropped every name after the first.
@@ -107,13 +121,17 @@ if [[ -n "${GUARD_PRIVATE_REPOS:-}" ]]; then
   # (read hits EOF looking for the NUL delimiter and returns nonzero after
   # filling the array; benign.)
   IFS=$', \t\n' read -r -d '' -a _PRIV <<< "$GUARD_PRIVATE_REPOS" || true
+  _SCANNED=0
   for _name in "${_PRIV[@]}"; do
     [[ -z "$_name" ]] && continue
     # Regex-escape the name so metacharacters in a repo name (., -, etc.) match
     # literally rather than changing the pattern's meaning.
     _esc="$(printf '%s' "$_name" | sed -E 's/[][(){}.^$*+?|\\]/\\&/g')"
     check BLOCK private-repo "\\b${_esc}\\b" 'Reference to a private WAVE repo/product (configured via GUARD_PRIVATE_REPOS) — keep out of public'
+    _SCANNED=1
   done
+  # A value of only separators is as disabled as no value at all.
+  (( _SCANNED == 0 )) && _no_private_repo_config
 fi
 
 # --- Credential formats gitleaks may miss in-context -------------------------

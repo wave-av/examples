@@ -65,6 +65,12 @@ expect 1 'operator home path' \
   'Repro: run it from /Users/someoperator/Documents/notes and it fails.'  # enforce-ignore (fixture)
 expect 1 'internal-only marker' \
   'Attaching the internal-only rollout plan for context.'
+# The markers most often arrive capitalised — sentence-initial or as a shouty
+# header — and a case-sensitive match missed exactly those shapes.
+expect 1 'INTERNAL ONLY header blocks despite capitals' \
+  'INTERNAL ONLY: rollout plan attached below.'
+expect 1 'sentence-initial Do not share blocks' \
+  'Do not share this outside the team.'
 # Assembled at run time rather than written as a literal: a fixture that LOOKS like
 # a live AWS key trips this repo's own pre-commit secret scanners (it did, on the
 # first draft). Splitting the prefix keeps the fixture exercising the real regex
@@ -109,6 +115,10 @@ expect 0 'marker MENTIONED in a code span' \
   'The rule matches `internal-only` and `for internal use` in body text.'
 expect 0 'marker MENTIONED in smart quotes' \
   'Blocks operator home paths and “internal-only” text.'
+# Use-vs-mention must survive the case-insensitive marker match: a QUOTED cased
+# marker is still a description, not a leak.
+expect 0 'cased marker MENTIONED in quotes is a description' \
+  'The gate now also catches "INTERNAL ONLY" headers in body text.'
 expect 1 'marker USED unquoted still blocks' \
   'Attaching the internal-only rollout plan; do not share outside the team.'
 
