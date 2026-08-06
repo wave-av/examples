@@ -141,8 +141,15 @@ if [[ -n "${GUARD_PRIVATE_REPOS:-}" ]]; then
     # OPS_DETAIL keeps its deliberate SCREAMING_CASE requirement. A global flag
     # made lowercase prose like "adds the api_key plumbing" count as operational
     # detail, and a gate that blocks harmless text gets switched off.
+    #
+    # No \b in front of OPS_DETAIL in either order: underscore is a word
+    # character, so [A-Z][A-Z0-9]*_ anchored at a word boundary can never reach
+    # the final segment of a multi-part name like WAVE_VIEWPORT_LEASE_SECRET
+    # (the only \b is before WAVE, and [A-Z0-9]* cannot cross underscores). A
+    # leading \b silently limited the name-then-detail order to two-segment
+    # credential names while the reverse order matched all of them.
     check BLOCK private-repo-ops \
-      "\\b(?i:${_ALT})\\b[^\\n]{0,140}?\\b${OPS_DETAIL}|${OPS_DETAIL}[^\\n]{0,140}?\\b(?i:${_ALT})\\b" \
+      "\\b(?i:${_ALT})\\b[^\\n]{0,140}?${OPS_DETAIL}|${OPS_DETAIL}[^\\n]{0,140}?\\b(?i:${_ALT})\\b" \
       'A private WAVE repo named alongside internal operational detail (credential name, secret binding, or secret count) — the wiring topology is not public' \
       about-ok
   fi

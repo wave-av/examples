@@ -42,10 +42,17 @@ expect() {
 echo "body-policy fixtures"
 
 # --- must BLOCK ---------------------------------------------------------------
+# No secondary trigger in this body: the multi-segment credential NAME is the
+# only OPS_DETAIL present, so this fixture proves the credential-name branch
+# itself fires in the name-then-detail order. An earlier wording also said
+# "is bound on", which independently satisfied OPS_DETAIL and kept this test
+# green while a leading \b silently broke the branch it exists to prove.
 expect 1 'private repo + credential name' \
-  'Flip is live: WAVE_VIEWPORT_LEASE_SECRET is bound on acme-private-gateway now.'
+  'Flip is live: acme-private-gateway now reads WAVE_VIEWPORT_LEASE_SECRET at boot.'
 expect 1 'private repo + credential name, reverse order' \
   'The MOQ_JOIN_SECRET was added; acme-private-transports picks it up on deploy.'
+expect 1 'private repo + secret-binding phrase' \
+  'Flip is live: the lease secret is bound on acme-private-gateway now.'
 expect 1 'private repo + secret count' \
   'acme-private-gateway went from 74 secrets to 75 after this change.'
 expect 1 'private repo + service binding' \
