@@ -75,19 +75,18 @@ jobs:
           [ -n "$BASE" ] || BASE="${PUSH_BEFORE_SHA:-}"
           # A base can be PRESENT and still unusable: a force-push leaves `github.event.before`
           # pointing at a commit this checkout no longer contains.
+          # FIX 5 — fail CLOSED. This previously fell back to `BASE=HEAD` (an empty diff, zero
+          # files scanned, job green), then to `HEAD~1` — which scans only the newest commit, so
+          # a force-push that rewrites history with several commits hides every commit but the
+          # last from the gate. With no VERIFIABLE base, guessing any commit under-scans; diff
+          # against the EMPTY TREE instead, so every tracked file reads as added and the whole
+          # repo is scanned. (`--all` also exists in 0.4.6 and would do most of this, but it is
+          # documented as NOT covering the diff-scoped over-grant detectors. Routing through the
+          # diff path with an empty base keeps every detector in play.)
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
              || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            BASE="$(git rev-parse --verify --quiet 'HEAD~1' || true)"
-          fi
-          # FIX 5 — fail CLOSED. This previously fell back to `BASE=HEAD`, and `--changed HEAD`
-          # diffs HEAD against itself: an empty diff, zero files scanned, job green. With no
-          # resolvable base, diff against the EMPTY TREE so every tracked file reads as added and
-          # the whole repo is scanned. (`--all` also exists in 0.4.6 and would do most of this, but
-          # it is documented as NOT covering the diff-scoped over-grant detectors. Routing through
-          # the diff path with an empty base keeps every detector in play.)
-          if [ -z "$BASE" ]; then
             BASE="$(git hash-object -t tree /dev/null)"
-            echo "::notice::no diff base resolved (root commit or unreachable before-sha) — scanning the whole tree against the empty tree"
+            echo "::notice::no verifiable diff base (root commit, branch creation, or force-push with unreachable before-sha) — scanning the whole tree against the empty tree"
           fi
           echo "diffing against $BASE"
           exec node "$ENFORCE" --changed "$BASE"
