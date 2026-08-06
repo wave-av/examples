@@ -59,6 +59,11 @@ expect 1 'AWS access key id' \
   "The failing job had ${AKID_FIXTURE} configured."
 expect 1 'internal tailscale IP' \
   'It resolves to 100.71.4.19 from inside the fleet.'
+# The ABOUT-THE-CONTROL allowlist is scoped to prose-shaped rules only. A real
+# credential is a leak even on a line that talks about the gate — "the guard
+# caught <key>" still contains the key — so naming the control must not exempt it.
+expect 1 'credential still blocks on a line naming the control' \
+  "public-repo-guard flagged ${AKID_FIXTURE} in the logs — see SECURITY.md."
 
 # --- must PASS (precision — these keep the gate deployable) -------------------
 expect 0 'bare private-repo cross-reference' \
@@ -73,6 +78,8 @@ expect 0 'talking about the control' \
   'body-policy blocks a private repo named next to a SECRET_TOKEN; that is intended.'
 expect 0 'explicit guard:allow with a reason' \
   'Example for the docs: wave-gateway holds EXAMPLE_SECRET — guard:allow documented-example'
+expect 0 'credential on a control line passes only via explicit guard:allow' \
+  "public-repo-guard docs cite ${AKID_FIXTURE} as the test fixture — guard:allow documented-fixture"
 expect 0 'ordinary clean body' \
   'Bumps the draft revision and regenerates the fixtures. No behaviour change.'
 # Regression: the first CI run of this job failed on its own PR, because a review
