@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WAVE agent-video demo</title>
+<style>
+*,::after,::before{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111;background:#fafafa;line-height:1.5}
+header{background:#0d0d0d;color:#fff;padding:3rem 1rem;text-align:center}
+header h1{font-size:2.5rem;font-weight:600;letter-spacing:-.02em}
+header p{color:#999;font-size:1.1rem;margin-top:.5rem}
+main{max-width:800px;margin:0 auto;padding:2rem 1rem}
+section{margin-bottom:3rem}
+section h2{font-size:1.5rem;font-weight:600;margin-bottom:1rem;border-bottom:2px solid #ddd;padding-bottom:.5rem}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:1.5rem;margin-bottom:1.5rem}
+.video-wrap{position:relative;width:100%;max-width:720px;margin:0 auto;border-radius:8px;overflow:hidden;background:#000}
+.video-wrap video{width:100%;display:block}
+.steps{display:grid;grid-template-columns:1fr;gap:1rem}
+@media(min-width:640px){.steps{grid-template-columns:1fr 1fr}}
+.step{background:#f5f5f5;border-radius:8px;padding:1.25rem;border:1px solid #e5e5e5}
+.step .tag{display:inline-block;font-size:.75rem;font-weight:600;color:#fff;background:#0d0d0d;padding:.2rem .6rem;border-radius:4px;margin-bottom:.5rem}
+.step h3{font-size:1rem;font-weight:600;margin-bottom:.25rem}
+.step p{font-size:.9rem;color:#555}
+.step code{font-size:.8rem;background:#e8e8e8;padding:.1rem .3rem;border-radius:3px}
+pre{background:#f0f0f0;border-radius:6px;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.4}
+code{font-family:'SF Mono',Menlo,monospace}
+.success{border-left:3px solid #22c55e;padding-left:1rem;color:#166534;background:#f0fdf4;border-radius:0 6px 6px 0}
+footer{text-align:center;padding:2rem;color:#777;font-size:.85rem}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>WAVE agent-video demo</h1>
+  <p>An agent speaks, and video appears</p>
+</header>
+
+<main>
+
+<section>
+  <h2>Produced video</h2>
+  <div class="card">
+    <div class="video-wrap">
+      <video controls playsinline preload="metadata">
+        <source src="demo-video.mp4" type="video/mp4">
+      </video>
+    </div>
+    <p style="margin-top:1rem;color:#555;font-size:.9rem">
+      4.3-second clip — WAVE voice narration + Big Buck Bunny source,
+      created entirely through the live production API
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>Pipeline</h2>
+  <div class="steps">
+
+    <div class="step">
+      <span class="tag">Step 1</span>
+      <h3>Synthesize narration</h3>
+      <p><code>POST /v1/voice {text}</code> → real MP3 audio from WAVE's neural TTS, served as <code>audio/mpeg</code></p>
+    </div>
+
+    <div class="step">
+      <span class="tag">Step 2</span>
+      <h3>Create clip</h3>
+      <p><code>POST /v1/clips {source, in, out}</code> → the gateway accepts a source recording id + relative time window, returns a <code>clipId</code></p>
+    </div>
+
+    <div class="step">
+      <span class="tag">Step 3</span>
+      <h3>Clip engine</h3>
+      <p>Cloudflare Media Transformations reads the source via a presigned URL, transcodes the window, and writes the result to <code>&lt;org&gt;/clips/&lt;clipId&gt;/clip.mp4</code></p>
+    </div>
+
+    <div class="step">
+      <span class="tag">Step 4</span>
+      <h3>Delivery</h3>
+      <p>The response includes a signed URL (<code>media.wave.online/...?exp=&amp;sig=</code>) — 200 <code>video/mp4</code>, HMAC-authenticated, time-limited</p>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2>Run it</h2>
+  <div class="card">
+    <p style="margin-bottom:1rem">Reproduce the full pipeline with one command:</p>
+    <pre>export WAVE_API_KEY=wave_live_...
+export WAVE_ORG_ID=&lt;your-org-id&gt;
+export WAVE_SOURCE_RECORDING_ID=&lt;recording-id&gt;
+
+node demo.mjs all</pre>
+    <p style="margin-top:1rem">Or run individual steps:</p>
+    <pre>node demo.mjs synthesize    # MP3 narration
+node demo.mjs create-clip   # signed delivery URL
+node demo.mjs delivery      # produce clip + download</pre>
+    <div class="success" style="margin-top:1rem">
+      ✅ Verified end-to-end against <code>api.wave.online</code> — 201 clip creation, automatic clip‑engine processing, 200 video/mp4 delivery
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>How it works</h2>
+  <div class="card">
+    <p style="margin-bottom:.75rem">The clip is created from a <strong>registered source recording</strong> in <code>iso_recordings</code> — an org‑scoped R2 recordings store. The gateway's internal registry (<code>POST /v1/internal/recordings/register</code>, service‑token gated) allows any ingest protocol (SRT, RTMP, WHIP, MoQ, direct upload) to deposit bytes and register their location, making them immediately clip‑able.</p>
+    <p>Once registered, <code>POST /v1/clips</code> triggers the clip engine — a Cloudflare Media Transformations worker that resolves the source to a presigned R2 URL, transcodes the requested time window, and writes the output to the <code>wave‑clips</code> R2 bucket. Private clips are served via HMAC‑signed delivery URLs that <code>wave‑media‑edge</code> verifies at request time.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>WAVE · <a href="https://wave.online">wave.online</a> · <a href="https://github.com/wave-av/examples">github.com/wave-av/examples</a></p>
+</footer>
+
+</body>
+</html>

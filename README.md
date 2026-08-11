@@ -9,6 +9,7 @@ Working examples for the WAVE developer platform. Each directory is a standalone
 | [`sdk-quickstart`](./sdk-quickstart) | [`@wave-av/sdk`](https://github.com/wave-av/sdk) | Create a stream, start it, and fetch viewer analytics |
 | [`mcp-server-setup`](./mcp-server-setup) | [`@wave-av/mcp-server`](https://github.com/wave-av/mcp-server) | Configure WAVE tools in Claude, Cursor, or any MCP client |
 | [`adk-hello-agent`](./adk-hello-agent) | [`@wave-av/adk`](https://github.com/wave-av/adk) | Build an AI agent that monitors stream quality |
+| [`agent-clip-demo`](./agent-clip-demo) | — | Agent-video keystone: voice synthesis + clip creation + signed delivery |
 
 ## Prerequisites
 
