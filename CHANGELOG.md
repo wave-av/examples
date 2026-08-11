@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+<<<<<<< HEAD
 
 ### Fixed
 
@@ -31,3 +32,24 @@ All notable changes to this project are documented here. The format is based on
   Contributors on forks are affected: a maintainer's `/review` on a fork PR is
   now declined with a warning rather than silently running.
   (wave-av/wave-foundation-public#73)
+||||||| parent of 4ae7471 (docs(changelog): add agent-clip-demo entry)
+=======
+
+### Added
+
+- **agent-clip-demo** — end-to-end agent-video demo: voice synthesis → clip
+  creation → signed video delivery, verified against the live production API.
+
+  Three commands (`demo.mjs synthesize | clip | all`) reproduce the keystone
+  pipeline: `POST /v1/voice {text}` returns real `audio/mpeg` MP3 narration;
+  `POST /v1/clips {source, in, out}` returns a `201` clipId + HMAC-signed
+  delivery URL; the delivery URL serves `200 video/mp4` from
+  `media.wave.online`. Includes a WAVE-branded showcase page (`index.html`)
+  and a pre-rendered sample video (WAVE narration over a Big Buck Bunny
+  source clip).
+
+  Verification receipts: source recording `f7acfa81-…` (BBB, .mp4, ready)
+  → clip create `201` → clip engine produced 46KB 5s 1280×720 H.264/AAC
+  → signed URL `200 video/mp4`. All against `api.wave.online` and
+  `media.wave.online`.
+>>>>>>> 4ae7471 (docs(changelog): add agent-clip-demo entry)
