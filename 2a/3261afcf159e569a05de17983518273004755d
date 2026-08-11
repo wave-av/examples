@@ -1,0 +1,22 @@
+agent-clip-demo/demo.mjs
+  s_60c5725270cba3::t_5d160b4e3eaaaa 5,7-8,10-12,14-17,19-21,26,28,30,33,40-44,57-60,63-67,71,73-80,85,87-90,92-103,105-108,110-112
+  s_60c5725270cba3::t_c2db031f52f9aa 70
+agent-clip-demo/index.html
+  s_60c5725270cba3::t_b4f8e551a137e5 9-40,47-48,55,57,62-65,71-76,82,84-86,88-91,98-99,106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "2a3261afcf159e569a05de17983518273004755d",
+  "prompts": {},
+  "sessions": {
+    "s_60c5725270cba3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01102325affeiT16qwRvWzIjqe",
+        "model": "deepseek-v4-flash-free"
+      },
+      "human_author": "Jake Fineman <jakefineman@gmail.com>"
+    }
+  }
+}
