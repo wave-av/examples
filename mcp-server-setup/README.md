@@ -4,7 +4,7 @@ Configure the WAVE MCP server so your AI coding assistant can manage streams, pr
 
 ## 1. Get an API key
 
-Create one at [wave.online/settings/api-keys](https://wave.online/settings/api-keys), or via CLI:
+Create one at [wave.online/developers](https://wave.online/developers), or via CLI:
 
 ```bash
 npx @wave-av/sdk auth login
