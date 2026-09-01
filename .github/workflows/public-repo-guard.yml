@@ -13,10 +13,15 @@ name: public-repo-guard
 # wave-av/.github must not be able to alter another repo's secret scanner). The
 # gitleaks binary is version-pinned AND SHA-256-verified before it runs.
 #
-# To install on a new repo, copy all three files together:
+# To install on a new repo, copy all six files together:
 #   .github/workflows/public-repo-guard.yml
+#   .github/workflows/public-repo-guard-body.yml   (the body gate; a SEPARATE file
+#     on purpose, see that file's header for why it must not live here)
 #   .gitleaks.toml
 #   scripts/public-repo-guard/content-policy.sh
+#   scripts/public-repo-guard/body-policy.sh
+#   scripts/public-repo-guard/tests/body-policy.test.sh   (run unconditionally as a
+#     self-test step below — omit it and the gate fails on every push)
 #
 # Scan scope: the published working TREE (gitleaks --no-git), NOT git history. The
 # goal is "what is public right now is clean", so a shallow checkout is sufficient.
@@ -25,24 +30,49 @@ name: public-repo-guard
 # path glob to a repo-root `.guardignore`, or extend the repo-local `.gitleaks.toml`.
 
 on:
+  # This file's trigger list must contain ONLY events on which `guard` performs a
+  # real scan. The job is the required `Secrets + content policy` check, and a
+  # job-level `if` skip still creates a check run (conclusion `skipped`) on the
+  # PR head SHA. Required checks treat `skipped` as satisfied and the newest check
+  # run of a name wins, so one skipped run would launder an earlier genuine FAILURE
+  # on the same commit into a mergeable PR. That is why the body gate, with its
+  # issue/comment/review triggers, lives in public-repo-guard-body.yml instead of
+  # here, and why `edited` below runs a full scan rather than being filtered out:
+  # a title edit re-scans an unchanged merge ref (same verdict, small cost), and a
+  # base-branch retarget (which also arrives as `edited`, with no `synchronize`
+  # guaranteed to follow) re-scans the NEW merge ref it actually changes.
   pull_request:
+    types: [opened, edited, reopened, synchronize]
   push:
     branches: [main, master]
   workflow_dispatch:
 
+# `pull_request`, deliberately NOT `pull_request_target`: a fork PR must never get
+# a write token or repo secrets just because a gate wanted to read its tree.
 permissions:
   contents: read
-
-concurrency:
-  group: public-repo-guard-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   guard:
     name: Secrets + content policy
+    # No job-level `if`: every event this workflow triggers on gets a real scan.
+    # See the trigger comment above: a skipped run of a required check is not
+    # neutral, it REPLACES a failing verdict on the same head SHA.
+    concurrency:
+      group: public-repo-guard-tree-${{ github.event.pull_request.number || github.ref }}
+      # `edited` fires on every title/body edit (bots edit PR bodies constantly) and
+      # re-scans an UNCHANGED merge ref — so it must not cancel an in-flight run on
+      # the same head SHA, or every body edit leaves a cancelled check-run attached
+      # to the commit. `synchronize` (and push) DO supersede the previous merge ref,
+      # so those still cancel the now-stale scan.
+      cancel-in-progress: ${{ github.event.action != 'edited' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # The gate only reads the tree; no later step may find the workflow token
+          # in .git/config — matches every other workflow in this repo.
+          persist-credentials: false
 
       # gitleaks' GitHub Action requires a paid license for organizations; the CLI
       # itself is MIT-licensed and free. Pin the version AND verify the release
@@ -64,10 +94,33 @@ jobs:
       - name: gitleaks (secret scan — published tree)
         run: gitleaks detect --no-git --source . --config .gitleaks.toml --redact --no-banner --exit-code 1
 
-      - name: Install ripgrep
-        run: command -v rg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep)
+      # Both policy scripts scan with `rg -P`, which needs a PCRE2-enabled build.
+      # Neither the runner image nor Ubuntu's apt package guarantees one, and a
+      # PCRE2-less rg makes every rule fail closed — so install the pinned upstream
+      # musl release (built with PCRE2), checksum-verified like gitleaks above, and
+      # verify PCRE2 at install time, where the failure names the actual problem.
+      - name: Install ripgrep (pinned + checksum-verified, PCRE2 required)
+        env:
+          RIPGREP_VERSION: "14.1.1"
+          RIPGREP_SHA256: "4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e"
+        run: |
+          curl -fsSL --proto '=https' --tlsv1.2 -o ripgrep.tar.gz \
+            "https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          echo "${RIPGREP_SHA256}  ripgrep.tar.gz" | sha256sum -c -
+          tar -xzf ripgrep.tar.gz --strip-components=1 "ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl/rg"
+          sudo install -m 0755 rg /usr/local/bin/rg
+          rm -f rg ripgrep.tar.gz
+          rg --pcre2-version >/dev/null \
+            || { echo "::error title=public-repo-guard::this ripgrep build lacks PCRE2 (required for the -P policy rules) — install a PCRE2-enabled rg."; exit 1; }
 
       - name: content policy (WAVE trade-secret / internal-leak gate)
         env:
           GUARD_PRIVATE_REPOS: ${{ vars.GUARD_PRIVATE_REPOS }}
         run: bash scripts/public-repo-guard/content-policy.sh .
+
+      # The body gate's own fixtures. Its negatives are the load-bearing half — a
+      # leak gate that blocks legitimate cross-repo references gets switched off,
+      # and then it protects nothing. Runs here so a regression is caught by CI
+      # rather than by a leak.
+      - name: body policy self-test (fixtures)
+        run: bash scripts/public-repo-guard/tests/body-policy.test.sh

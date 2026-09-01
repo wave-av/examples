@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+# Fixture tests for body-policy.sh.
+#
+# Deliberately fixture-only: the gate is NEVER proved by writing a real leak into a
+# live public PR body, because doing so would publish the exact thing it guards.
+#
+# The negatives here are the load-bearing half. A leak gate that blocks everything
+# is trivially "correct" and useless — it gets disabled within a week. The bare
+# cross-reference case below is the one that keeps this gate deployable.
+set -uo pipefail
+
+SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/body-policy.sh"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+# The names the real gate is configured with come from an org variable; the tests
+# pin their own so they are hermetic and do not depend on CI configuration. The
+# pinned names are deliberately SYNTHETIC: this file is world-readable and the
+# tree scanners exclude scripts/public-repo-guard/**, so a real private-repo name
+# written here would be published unscanned — the exact leak the gate exists to
+# block. Never swap these for real names.
+export GUARD_PRIVATE_REPOS="acme-private-gateway, acme-private-transports, acme-private-billing"
+
+PASS=0; FAIL=0
+
+# expect <exit-code> <name> <body-text>
+expect() {
+  local want="$1" name="$2" body="$3" out rc
+  printf '%s\n' "$body" > "$TMP/body.txt"
+  out="$(bash "$SCRIPT" "$TMP/body.txt" 2>&1)"; rc=$?
+  if [[ "$rc" == "$want" ]]; then
+    PASS=$((PASS+1)); printf '  ok   %s\n' "$name"
+  else
+    FAIL=$((FAIL+1)); printf '  FAIL %s — want exit %s, got %s\n%s\n' "$name" "$want" "$rc" "$out"
+  fi
+  # The annotation is world-readable; a hit must never echo the matched text.
+  if [[ "$rc" == 1 ]] && printf '%s' "$out" | grep -qF "$body"; then
+    FAIL=$((FAIL+1)); printf '  FAIL %s — LEAKED the matched text into the annotation\n' "$name"
+  fi
+}
+
+echo "body-policy fixtures"
+
+# --- must BLOCK ---------------------------------------------------------------
+# No secondary trigger in this body: the multi-segment credential NAME is the
+# only OPS_DETAIL present, so this fixture proves the credential-name branch
+# itself fires in the name-then-detail order. An earlier wording also said
+# "is bound on", which independently satisfied OPS_DETAIL and kept this test
+# green while a leading \b silently broke the branch it exists to prove.
+expect 1 'private repo + credential name' \
+  'Flip is live: acme-private-gateway now reads WAVE_VIEWPORT_LEASE_SECRET at boot.'
+expect 1 'private repo + credential name, reverse order' \
+  'The MOQ_JOIN_SECRET was added; acme-private-transports picks it up on deploy.'
+expect 1 'private repo + secret-binding phrase' \
+  'Flip is live: the lease secret is bound on acme-private-gateway now.'
+expect 1 'private repo + secret count' \
+  'acme-private-gateway went from 74 secrets to 75 after this change.'
+expect 1 'private repo + service binding' \
+  'This adds a service binding from the worker to acme-private-billing for settlement.'
+# Case-insensitivity is scoped to the repo NAME, not the whole pattern: a cased
+# variant of the name still blocks, while OPS_DETAIL stays SCREAMING_CASE-only.
+expect 1 'mixed-case private repo name + credential name still blocks' \
+  'ACME-Private-Gateway reads the ROLLOUT_SECRET at boot after this change.'
+expect 1 'operator home path' \
+  'Repro: run it from /Users/someoperator/Documents/notes and it fails.'  # enforce-ignore (fixture)
+expect 1 'internal-only marker' \
+  'Attaching the internal-only rollout plan for context.'
+# The markers most often arrive capitalised — sentence-initial or as a shouty
+# header — and a case-sensitive match missed exactly those shapes.
+expect 1 'INTERNAL ONLY header blocks despite capitals' \
+  'INTERNAL ONLY: rollout plan attached below.'
+expect 1 'sentence-initial Do not share blocks' \
+  'Do not share this outside the team.'
+# Assembled at run time rather than written as a literal: a fixture that LOOKS like
+# a live AWS key trips this repo's own pre-commit secret scanners (it did, on the
+# first draft). Splitting the prefix keeps the fixture exercising the real regex
+# without parking a credential-shaped string in source.
+AKID_FIXTURE="AKI""A1234567890ABCDEF"
+expect 1 'AWS access key id' \
+  "The failing job had ${AKID_FIXTURE} configured."
+expect 1 'internal tailscale IP' \
+  'It resolves to 100.71.4.19 from inside the fleet.'
+# The ABOUT-THE-CONTROL allowlist is scoped to prose-shaped rules only. A real
+# credential is a leak even on a line that talks about the gate — "the guard
+# caught <key>" still contains the key — so naming the control must not exempt it.
+expect 1 'credential still blocks on a line naming the control' \
+  "public-repo-guard flagged ${AKID_FIXTURE} in the logs — see SECURITY.md."
+
+# --- must PASS (precision — these keep the gate deployable) -------------------
+expect 0 'bare private-repo cross-reference' \
+  'This is the companion change to acme-private-transports#260; merge that one first.'
+expect 0 'two private repos, no operational detail' \
+  'Both acme-private-gateway and acme-private-transports will need a follow-up for this.'
+expect 0 'credential NAME with no private repo nearby' \
+  'The handler now reads SOME_API_TOKEN from the environment instead of a literal.'
+# Regression for a global (?i) that made lowercase prose count as OPS_DETAIL:
+# "api_key" is ordinary description, not a SCREAMING_CASE credential name.
+expect 0 'lowercase credential-ish word near a private repo is prose' \
+  'Companion to acme-private-transports#260 — adds the api_key plumbing to the client.'
+expect 0 'public runner path is not an operator path' \
+  'CI checks out to /home/runner/work/repo/repo before the scan runs.'  # enforce-ignore (fixture)
+expect 0 'talking about the control' \
+  'body-policy blocks a private repo named next to a SECRET_TOKEN; that is intended.'
+expect 0 'explicit guard:allow with a reason' \
+  'Example for the docs: acme-private-gateway holds EXAMPLE_SECRET — guard:allow documented-example'
+expect 0 'credential on a control line passes only via explicit guard:allow' \
+  "public-repo-guard docs cite ${AKID_FIXTURE} as the test fixture — guard:allow documented-fixture"
+expect 0 'ordinary clean body' \
+  'Bumps the draft revision and regenerates the fixtures. No behaviour change.'
+# Regression: the first CI run of this job failed on its own PR, because a review
+# bot edited the body to summarize the change and quoted the marker verbatim.
+expect 0 'marker MENTIONED in straight quotes is a description' \
+  'Blocks infra identifiers and markers (account_id, home paths, "internal-only" text).'
+expect 0 'marker MENTIONED in a code span' \
+  'The rule matches `internal-only` and `for internal use` in body text.'
+expect 0 'marker MENTIONED in smart quotes' \
+  'Blocks operator home paths and “internal-only” text.'
+# Use-vs-mention must survive the case-insensitive marker match: a QUOTED cased
+# marker is still a description, not a leak.
+expect 0 'cased marker MENTIONED in quotes is a description' \
+  'The gate now also catches "INTERNAL ONLY" headers in body text.'
+expect 1 'marker USED unquoted still blocks' \
+  'Attaching the internal-only rollout plan; do not share outside the team.'
+
+# --- configuration handling ----------------------------------------------------
+# expect_with_env <exit-code> <name> <body-text> <env-assignments...>
+# Same contract as expect(), but runs the script under an explicit environment
+# instead of the file-level export, so these cases stay hermetic no matter where
+# the suite itself runs (CI exports GITHUB_ACTIONS=true; a laptop does not).
+expect_with_env() {
+  local want="$1" name="$2" body="$3"; shift 3
+  printf '%s\n' "$body" > "$TMP/body.txt"
+  local rc
+  env "$@" bash "$SCRIPT" "$TMP/body.txt" >/dev/null 2>&1; rc=$?
+  if [[ "$rc" == "$want" ]]; then
+    PASS=$((PASS+1)); printf '  ok   %s\n' "$name"
+  else
+    FAIL=$((FAIL+1)); printf '  FAIL %s: want exit %s, got %s\n' "$name" "$want" "$rc"
+  fi
+}
+
+# A newline-separated variable is the natural way to enter a multi-line Actions
+# variable, and `read` without -d '' stopped at the first line, silently leaving
+# every later name unguarded. The fixture leaks the THIRD name: it only blocks
+# if the whole value was parsed.
+expect_with_env 1 'newline-separated repo list still guards names after line one' \
+  'Flip is live: acme-private-billing now reads WAVE_VIEWPORT_LEASE_SECRET at boot.' \
+  GUARD_PRIVATE_REPOS=$'acme-private-gateway\nacme-private-transports\nacme-private-billing'
+
+# In CI an empty GUARD_PRIVATE_REPOS is a misconfiguration, not a pass: the
+# workflow always injects the env line, so empty means the org variable is gone.
+# The gate must go red rather than run with its headline rule silently disabled.
+expect_with_env 2 'empty GUARD_PRIVATE_REPOS in CI fails closed' \
+  'An ordinary clean body with nothing to hide.' \
+  GUARD_PRIVATE_REPOS= GITHUB_ACTIONS=true
+expect_with_env 2 'separator-only GUARD_PRIVATE_REPOS in CI fails closed' \
+  'An ordinary clean body with nothing to hide.' \
+  GUARD_PRIVATE_REPOS=' , , ' GITHUB_ACTIONS=true
+
+# Locally the documented skip still applies: developers do not carry the org's
+# private-repo list, and the other rules still run.
+expect_with_env 0 'empty GUARD_PRIVATE_REPOS locally skips the rule, still passes' \
+  'An ordinary clean body with nothing to hide.' \
+  GUARD_PRIVATE_REPOS= GITHUB_ACTIONS=
+expect_with_env 1 'empty GUARD_PRIVATE_REPOS locally still enforces other rules' \
+  'Attaching the internal-only rollout plan for context.' \
+  GUARD_PRIVATE_REPOS= GITHUB_ACTIONS=
+
+# --- fail closed --------------------------------------------------------------
+# Invoked directly, not through expect(): expect() always materializes a file, so
+# it cannot reach these paths. A gate that returns "OK" when it was handed nothing
+# to scan is the failure mode this whole file exists to prevent.
+for case in "no argument at all::" "nonexistent path::$TMP/does-not-exist.txt"; do
+  name="${case%%::*}"; arg="${case##*::}"
+  if [[ -n "$arg" ]]; then bash "$SCRIPT" "$arg" >/dev/null 2>&1; else bash "$SCRIPT" >/dev/null 2>&1; fi
+  rc=$?
+  if [[ "$rc" == 2 ]]; then
+    PASS=$((PASS+1)); printf '  ok   %s → exit 2 (fails closed)\n' "$name"
+  else
+    FAIL=$((FAIL+1)); printf '  FAIL %s — want exit 2, got %s\n' "$name" "$rc"
+  fi
+done
+
+echo "  ---"
+if (( FAIL > 0 )); then
+  echo "  $PASS passed, $FAIL FAILED"; exit 1
+fi
+echo "  $PASS passed, 0 failed"
