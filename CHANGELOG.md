@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added
+
+- npm lockfiles for the root package, `adk-hello-agent`, and `sdk-quickstart`.
+
 <<<<<<< HEAD
 
 ### Fixed
